@@ -31,8 +31,6 @@ client.on('message', (msg: Message) => {
 
             var roleFrequency = [mafia, detectives, healers, towns];
 
-            msg.guild.members.
-
         }
     } else if(msg.content == "test"){
         console.log(msg.guild.memberCount);
