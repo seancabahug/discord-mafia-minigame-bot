@@ -2,9 +2,22 @@
 import { Game } from './game';
 import { Player } from './player';
 import { Message } from 'discord.js';
+import { GameRole } from './enums';
 
 const Discord = require('discord.js')
 const client = new Discord.Client();
+
+// thanks stackoverflow
+function shuffle(a) {
+    var j, x, i;
+    for (i = a.length - 1; i > 0; i--) {
+        j = Math.floor(Math.random() * (i + 1));
+        x = a[i];
+        a[i] = a[j];
+        a[j] = x;
+    }
+    return a;
+}
 
 var game: Game;
 
@@ -19,8 +32,8 @@ client.on('ready', () => {
 });
 
 client.on('message', (msg: Message) => {
-    if(msg.content == "!startgame"){ // TO-DO: make a proper start game function
-        if(msg.guild.memberCount - 1 >= 6){ // Check if there are more than 6 players (bot is included in guild.memberCount)
+    if(msg.content == "!startgame" || msg.content == "!forcestartgame"){ // TO-DO: make a proper start game system
+        if(msg.guild.memberCount - 1 >= 6 || msg.content == "!forcestartgame"){ // Check if there are more than 6 players (bot is included in guild.memberCount)
 
             // Role Frequency Calculation
             // TO-DO (low priority): change role frequency calculation? (maybe?)
@@ -31,9 +44,28 @@ client.on('message', (msg: Message) => {
 
             var roleFrequency = [mafia, detectives, healers, towns];
 
+            var memberArray = msg.guild.members.array();
+            var index = memberArray.indexOf(msg.guild.me);
+            if (index > -1) {
+                memberArray.splice(index, 1);
+            }
+            memberArray = shuffle(memberArray);
+
+            var playerArray: Player[] = [];
+
+            for(var i = 0; i < memberArray.length; i++){
+                playerArray.push(new Player(memberArray[i],
+                    i <= roleFrequency[0] ? GameRole.MAFIA
+                    : i <= roleFrequency[1] ? GameRole.DETECTIVE
+                    : i <= roleFrequency[2] ? GameRole.HEALER
+                    : GameRole.TOWNSPERSON
+                ));
+            }
+
+            console.log(playerArray);
         }
     } else if(msg.content == "test"){
-        console.log(msg.guild.memberCount);
+        console.log(msg.guild.members.array());
     }
 });
 
