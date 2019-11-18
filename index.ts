@@ -21,7 +21,7 @@ function shuffle(a) {
 
 var game: Game;
 
-const maxNumOfPlayers = 6;
+const minNumOfPlayers = 6;
 
 if(process.env.NODE_ENV !== 'production'){
     require('dotenv').config();
@@ -32,12 +32,12 @@ client.on('ready', () => {
 });
 
 client.on('message', (msg: Message) => {
-    if(msg.content == "!startgame" || msg.content == "!forcestartgame"){ // TO-DO: make a proper start game system
-        if(msg.guild.memberCount - 1 >= 6 || msg.content == "!forcestartgame"){ // Check if there are more than 6 players (bot is included in guild.memberCount)
+    if(msg.content == "!startgame" && msg.author.discriminator == "5612"){ // TO-DO: make a proper start game system
+        if(msg.guild.memberCount - 1 >= 6){ // Check if there are more than 6 players (bot is included in guild.memberCount)
 
             // Role Frequency Calculation
             // TO-DO (low priority): change role frequency calculation? (maybe?)
-            var mafia = 1 + Math.floor((msg.guild.memberCount - 1) / 2);
+            var mafia = 1 + Math.floor((msg.guild.memberCount - 1 - minNumOfPlayers) / 2);
             var detectives = (mafia > 1) ? mafia - 1 : 1;
             var healers = (detectives > 1) ? detectives - 1 : 1;
             var towns = msg.guild.memberCount - 1 - (mafia + detectives + healers);
@@ -45,6 +45,8 @@ client.on('message', (msg: Message) => {
             var roleFrequency = [mafia, detectives, healers, towns];
 
             var memberArray = msg.guild.members.array();
+            
+            // remove bot from member array
             var index = memberArray.indexOf(msg.guild.me);
             if (index > -1) {
                 memberArray.splice(index, 1);
@@ -55,17 +57,15 @@ client.on('message', (msg: Message) => {
 
             for(var i = 0; i < memberArray.length; i++){
                 playerArray.push(new Player(memberArray[i],
-                    i <= roleFrequency[0] ? GameRole.MAFIA
-                    : i <= roleFrequency[1] ? GameRole.DETECTIVE
-                    : i <= roleFrequency[2] ? GameRole.HEALER
+                    i < roleFrequency[0] ? GameRole.MAFIA
+                    : i < roleFrequency[1] + roleFrequency[0] ? GameRole.DETECTIVE
+                    : i < roleFrequency[2] + roleFrequency[0] + roleFrequency[1] ? GameRole.HEALER
                     : GameRole.TOWNSPERSON
                 ));
             }
 
-            console.log(playerArray);
+            game = new Game(client, playerArray, msg.guild);
         }
-    } else if(msg.content == "test"){
-        console.log(msg.guild.members.array());
     }
 });
 
