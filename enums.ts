@@ -1,5 +1,5 @@
 enum GameState {
-    INTIALIZING,
+    INITIALIZING,
     DAY_INTRO, 
     DAY_DISCUSSION,
     DAY_VOTE,

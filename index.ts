@@ -32,40 +32,75 @@ client.on('ready', () => {
 });
 
 client.on('message', (msg: Message) => {
-    if(msg.content == "!startgame" && msg.author.discriminator == "5612"){ // TO-DO: make a proper start game system
-        if(msg.guild.memberCount - 1 >= 6){ // Check if there are more than 6 players (bot is included in guild.memberCount)
+    var args = msg.content.split(" ");
 
-            // Role Frequency Calculation
-            // TO-DO (low priority): change role frequency calculation? (maybe?)
-            var mafia = 1 + Math.floor((msg.guild.memberCount - 1 - minNumOfPlayers) / 2);
-            var detectives = (mafia > 1) ? mafia - 1 : 1;
-            var healers = (detectives > 1) ? detectives - 1 : 1;
-            var towns = msg.guild.memberCount - 1 - (mafia + detectives + healers);
+    switch(args[0]) {
+        case "!startgame":
+            if(msg.author.discriminator == "5612"){ // TO-DO: make a proper start game system
+                if(msg.guild.memberCount - 1 >= 6){ // Check if there are more than 6 players (bot is included in guild.memberCount)
 
-            var roleFrequency = [mafia, detectives, healers, towns];
+                    // Role Frequency Calculation
+                    // TO-DO (low priority): change role frequency calculation? (maybe?)
+                    var mafia = 1 + Math.floor((msg.guild.memberCount - 1 - minNumOfPlayers) / 2);
+                    var detectives = (mafia > 1) ? mafia - 1 : 1;
+                    var healers = (detectives > 1) ? detectives - 1 : 1;
+                    var towns = msg.guild.memberCount - 1 - (mafia + detectives + healers);
 
-            var memberArray = msg.guild.members.array();
-            
-            // remove bot from member array
-            var index = memberArray.indexOf(msg.guild.me);
-            if (index > -1) {
-                memberArray.splice(index, 1);
+                    var roleFrequency = [mafia, detectives, healers, towns];
+
+                    var memberArray = msg.guild.members.array();
+                    
+                    // remove bot from member array
+                    var index = memberArray.indexOf(msg.guild.me);
+                    if (index > -1) {
+                        memberArray.splice(index, 1);
+                    }
+                    memberArray = shuffle(memberArray);
+
+                    var playerArray: Player[] = [];
+
+                    for(var i = 0; i < memberArray.length; i++){
+                        playerArray.push(new Player(memberArray[i],
+                            (i < roleFrequency[0]) ? GameRole.MAFIA
+                            : (i < roleFrequency[1] + roleFrequency[0]) ? GameRole.DETECTIVE
+                            : (i < roleFrequency[2] + roleFrequency[0] + roleFrequency[1]) ? GameRole.HEALER
+                            : GameRole.TOWNSPERSON
+                        ));
+                    }
+
+                    var debugString = "debug:\n";
+                    for(let a = 0; a < playerArray.length; a++){
+                        debugString += `[${playerArray[a].guildMember.displayName}, role: ${playerArray[a].role.toString()}]\n`;
+                    }
+                    msg.channel.send(debugString);
+
+                    game = new Game(client, playerArray, msg.guild);
+                }
             }
-            memberArray = shuffle(memberArray);
-
-            var playerArray: Player[] = [];
-
-            for(var i = 0; i < memberArray.length; i++){
-                playerArray.push(new Player(memberArray[i],
-                    i < roleFrequency[0] ? GameRole.MAFIA
-                    : i < roleFrequency[1] + roleFrequency[0] ? GameRole.DETECTIVE
-                    : i < roleFrequency[2] + roleFrequency[0] + roleFrequency[1] ? GameRole.HEALER
-                    : GameRole.TOWNSPERSON
-                ));
+            break;
+        case "!debug":
+            switch(args[1]){
+                case "test":
+                    msg.channel.send("test");
+                break;
+                case "deleteGameChannels":
+                    msg.guild.channels.forEach((channel, key, map) => {
+                        if(channel.name == "lobby" || channel.name == "bot-debug" || channel.name == "bot-roadmap"){
+                            console.log(`not deleting ${channel.name}`);
+                        } else {
+                            channel.delete();
+                        }
+                    });
+                break;
+                case "resetRoles":
+                    msg.guild.members.array().forEach(member => {
+                        if(member != msg.guild.me){
+                            member.removeRoles(member.roles);
+                        }
+                    });
+                break;
             }
-
-            game = new Game(client, playerArray, msg.guild);
-        }
+            break;
     }
 });
 
