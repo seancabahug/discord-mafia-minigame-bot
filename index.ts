@@ -19,7 +19,7 @@ function shuffle(a) {
     return a;
 }
 
-var game: Game;
+var game: Game | undefined = undefined;
 
 const minNumOfPlayers = 6;
 
@@ -108,6 +108,8 @@ client.on('message', (msg: Message) => {
                 break;
             }
             break;
+        default:
+            if(game != undefined) game.processMessage(msg);
     }
 });
 
