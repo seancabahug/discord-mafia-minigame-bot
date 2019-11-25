@@ -1,8 +1,9 @@
 import { Player } from './player';
 import { GameState, GameRole } from './enums';
 import { Client, Guild, TextChannel, ChannelData, Role, ChannelCreationOverwrites, GuildChannel, Message, GuildMember } from 'discord.js';
+import { generateMessage } from './killMessages';
 
-function wait(seconds){
+function wait(seconds: number){
     return new Promise(resolve => {
         setTimeout(resolve, seconds * 1000);
     });
@@ -20,13 +21,13 @@ export class Game {
         kill: {killer: GuildMember, victim: Player}[], 
         heal: {healer: GuildMember, patient: Player}[], 
         investigate: {detective: GuildMember, subject: Player}[]
-    }
+    };
+    voting: {
+        votes: {voter: GuildMember, voted: Player}[],
+        individualVoted: {voted: Player, votes: number}[]
+    };
 
     constructor(bot: Client, players: Player[], server: Guild){
-        this.initializeGame(bot, players, server); // gameLoop will be called within initializeGame()
-    }
-
-    initializeGame = async (bot: Client, players: Player[], server: Guild) => {
         // Initialize variables
         this.players = {
             all: players,
@@ -44,8 +45,16 @@ export class Game {
             heal: [],
             investigate: []
         };
+        this.voting = {
+            votes: [],
+            individualVoted: []
+        };
         this.day = 1;
 
+        this.initializeGame(bot, players, server); // gameLoop will be called within initializeGame()
+    }
+
+    initializeGame = async (bot: Client, players: Player[], server: Guild) => {
         // Reset channels
         this.serverGuild.channels.forEach(async (channel, key, map) => {
             if(channel.name == "lobby" || channel.name == "bot-debug" || channel.name == "bot-roadmap"){
@@ -140,7 +149,6 @@ export class Game {
     }
 
     gameLoop = async () => {
-
         // Day intro
         this.gameState = GameState.DAY_INTRO;
         this.textChannels["the-central"].send("Welcome! You all have been given your roles through DM.\nTake some time to say hi! **Night will fall in 15 seconds.**");
@@ -149,14 +157,16 @@ export class Game {
         await wait(5);
         
         var isGameDone : boolean = false;
-        while(!isGameDone){
-            this.textChannels[0].replacePermissionOverwrites({
+        while(!isGameDone){ // Game loop!
+            
+            // Night time!
+            this.gameState = GameState.NIGHT;
+            this.textChannels["the-central"].replacePermissionOverwrites({ // Remove message sending perms from #the-central
                 overwrites: [{
                     id: this.aliveRole,
                     deny: ["SEND_MESSAGES"]
                 }]
             });
-            this.gameState = GameState.NIGHT;
             this.textChannels["the-central"].send("Good night, everybody! The sun will rise in 20 seconds. If you have a special ability, please refer to DM.");
             this.players.all.forEach(async player => {
                 var examplePerson = this.players.all[Math.floor(Math.random() * this.players.all.length)];
@@ -189,23 +199,90 @@ export class Game {
             await wait(5);
         
             this.day++;
-            
-            // TO-DO: night and day announcement code here
+
+            // Day announcements!
+            this.gameState = GameState.DAY_ANNOUNCEMENTS;
+
+            // Tell investigators the roles of the investigatee (is that the right word?)
+            this.nightActions.investigate.forEach(async action => {
+                await action.detective.send(`Your investigation last night has confirmed that **${action.subject.guildMember.user.username}** is a **${GameRole[action.subject.role]}**. ᵖˡᵉᵃˢᵉ ᵈᵒⁿ'ᵗ ˢᵉⁿᵈ ˢᶜʳᵉᵉⁿˢʰᵒᵗˢ ᵗᵒ ᵒᵗʰᵉʳ ᵖᵉᵒᵖˡᵉ ᵇᵉᶜᵃᵘˢᵉ ᶦᵗ ᵐᵃᵏᵉˢ ᵗʰᵉ ᵍᵃᵐᵉ ˡᵉˢˢ ᶠᵘⁿ`);
+            });
+
+            await this.textChannels["the-central"].send(`Good morning everybody @here! It is day ${this.day}.`);
+            await wait(1);
+            this.nightActions.kill.forEach(async element => {
+                if(this.nightActions.heal.find(action => action.patient == element.victim) == undefined){
+                    await this.textChannels["the-central"].send(generateMessage(element.victim, false));
+                    element.victim.isAlive = false;
+                    element.victim.guildMember.setRoles([]);
+                } else {
+                    await this.textChannels["the-central"].send(generateMessage(element.victim, true));
+                }
+                wait(2);
+            });
 
             // check win
             await this.checkWin().then(gameDone => {
                isGameDone = gameDone;
             });
             if(isGameDone) break;
+
+            // Reset night actions
+            this.nightActions = {
+                kill: [],
+                investigate: [],
+                heal: []
+            };
+
+            await this.textChannels["the-central"].replacePermissionOverwrites({ // Remove message sending perms from #the-central
+                overwrites: [{
+                    id: this.aliveRole,
+                    allow: ["SEND_MESSAGES"]
+                }]
+            });
             
+            this.gameState = GameState.DAY_DISCUSSION;
+            await this.textChannels["the-central"].send("Everyone is out of bed! You all have **40 seconds** until votes may be made for trial.");
+            await wait(30);
+            await this.textChannels["the-central"].send("Voting will begin in **10 seconds**.");
+            await wait(5);
+            await this.textChannels["the-central"].send("Voting will begin in **5 seconds**.");
+            await wait(5);
+            
+            this.gameState = GameState.DAY_TRIAL_DECISION;
+            await this.textChannels["the-central"].send("You have 15 seconds to vote.\nType `!vote <Player ID>` to accuse somebody.\nFor example, to accuse `[2] John Smith`, type `!vote 2`");
+            await wait(10);
+            await this.textChannels["the-central"].send("You have 5 seconds to vote.");
+            await wait(5);
+
+            this.textChannels["the-central"].send("Voting has ended!");
+
+            var mostVotedVote = {voted: null, votes: 0};
+            this.voting.individualVoted.forEach(vote => {
+                if(vote.votes > mostVotedVote.votes){
+                    mostVotedVote = vote;
+                } else if (vote.votes == mostVotedVote.votes){
+                    mostVotedVote = {
+                        voted: null,
+                        votes: vote.votes
+                    };
+                }
+            });
+
+            if(mostVotedVote.voted != null){
+                // Day trial statement!
+                this.gameState = GameState.DAY_TRIAL_STATEMENT;
+            } else {
+                await this.textChannels["the-central"].send("There is either a tie between multiple people, or no votes have been cast. The sun has set.");
+            }
         }
         
     }
 
     checkWin = () => {
         return new Promise<boolean>(async resolve => {
-            var innocentsWin : boolean = this.deadPlayers.filter(player => player.role == GameRole.MAFIA).length >= this.players.mafias.length;
-            var mafiaWins : boolean = this.deadPlayers.filter(player => player.role != GameRole.MAFIA).length >= this.players.all.filter(player => player.role != GameRole.MAFIA).length;
+            var innocentsWin: boolean = this.deadPlayers.filter(player => player.role == GameRole.MAFIA).length >= this.players.mafias.length;
+            var mafiaWins: boolean = this.deadPlayers.filter(player => player.role != GameRole.MAFIA).length >= this.players.all.filter(player => player.role != GameRole.MAFIA).length;
             if(innocentsWin || mafiaWins){
                 resolve(true);
                 if(innocentsWin){
@@ -234,61 +311,65 @@ export class Game {
     }
 
     processMessage = async (message: Message) => {
-        if(message.channel == message.author.dmChannel){
-            var player = this.players.all.find(player => player.guildMember == message.member);
-            if(player != undefined){
+        var player = this.players.all.find(player => player.guildMember.user == message.author);
+        if(player != undefined && player.isAlive){ // Is the user a living player?
+            if(message.channel == message.author.dmChannel){ // Message sent thru DM?
                 var actionSubject = parseInt(message.content);
                 switch(this.gameState){
-                    case GameState.NIGHT:
-                        if(!isNaN(actionSubject)){
-                            if(actionSubject < this.players.all.length && actionSubject >= 0){
+                    case GameState.NIGHT: // Night?
+                        if(!isNaN(actionSubject)){ // Is the message sent a number?
+                            if(actionSubject < this.players.all.length && actionSubject >= 0){ // Is it a valid number (within player range?)
                                 var playerSubject = this.players.all[actionSubject];
-                                switch(player.role){
-                                    case GameRole.DETECTIVE:
-                                        var investigateObj = this.nightActions.investigate.find(action => action.detective == message.member);
-                                        if(investigateObj == undefined){
-                                            this.nightActions.investigate.push({
-                                                detective: player.guildMember,
-                                                subject: playerSubject
-                                            });
-                                        } else {
-                                            this.nightActions.investigate[this.nightActions.investigate.indexOf(investigateObj)] = {
-                                                detective: player.guildMember,
-                                                subject: playerSubject
-                                            };
-                                        }
-                                        await message.channel.send(`You will be investigating ${playerSubject.guildMember.user.username}. Type \`cancel\` to cancel.`);
-                                    break;
-                                    case GameRole.HEALER:
-                                        var healObj = this.nightActions.heal.find(action => action.healer == message.member);
-                                        if(healObj == undefined){
-                                            this.nightActions.heal.push({
-                                                healer: player.guildMember,
-                                                patient: playerSubject
-                                            });
-                                        } else {
-                                            this.nightActions.heal[this.nightActions.heal.indexOf(healObj)] = {
-                                                healer: player.guildMember,
-                                                patient: playerSubject
-                                            };
-                                        }
-                                        await message.channel.send(`You will be healing ${playerSubject.guildMember.user.username}. Type \`cancel\` to cancel.`);
-                                    break;
-                                    case GameRole.MAFIA:
-                                        var killObj = this.nightActions.kill.find(action => action.killer == message.member);
-                                        if(killObj == undefined){
-                                            this.nightActions.kill.push({
-                                                killer: player.guildMember,
-                                                victim: playerSubject
-                                            });
-                                        } else {
-                                            this.nightActions.kill[this.nightActions.kill.indexOf(killObj)] = {
-                                                killer: player.guildMember,
-                                                victim: playerSubject
-                                            };
-                                        }
-                                        await message.channel.send(`You will be killing ${playerSubject.guildMember.user.username}. Type \`cancel\` to cancel.`);
-                                    break;
+                                if(playerSubject.isAlive){ // Is thir target alive?
+                                    switch(player.role){
+                                        case GameRole.DETECTIVE:
+                                            var investigateObj = this.nightActions.investigate.find(action => action.detective == message.member);
+                                            if(investigateObj == undefined){
+                                                this.nightActions.investigate.push({
+                                                    detective: player.guildMember,
+                                                    subject: playerSubject
+                                                });
+                                            } else {
+                                                this.nightActions.investigate[this.nightActions.investigate.indexOf(investigateObj)] = {
+                                                    detective: player.guildMember,
+                                                    subject: playerSubject
+                                                };
+                                            }
+                                            await message.channel.send(`You will be investigating ${playerSubject.guildMember.user.username}. Type \`cancel\` to cancel.`);
+                                        break;
+                                        case GameRole.HEALER:
+                                            var healObj = this.nightActions.heal.find(action => action.healer == message.member);
+                                            if(healObj == undefined){
+                                                this.nightActions.heal.push({
+                                                    healer: player.guildMember,
+                                                    patient: playerSubject
+                                                });
+                                            } else {
+                                                this.nightActions.heal[this.nightActions.heal.indexOf(healObj)] = {
+                                                    healer: player.guildMember,
+                                                    patient: playerSubject
+                                                };
+                                            }
+                                            await message.channel.send(`You will be healing ${playerSubject.guildMember.user.username}. Type \`cancel\` to cancel.`);
+                                        break;
+                                        case GameRole.MAFIA:
+                                            var killObj = this.nightActions.kill.find(action => action.killer == message.member);
+                                            if(killObj == undefined){
+                                                this.nightActions.kill.push({
+                                                    killer: player.guildMember,
+                                                    victim: playerSubject
+                                                });
+                                            } else {
+                                                this.nightActions.kill[this.nightActions.kill.indexOf(killObj)] = {
+                                                    killer: player.guildMember,
+                                                    victim: playerSubject
+                                                };
+                                            }
+                                            await message.channel.send(`You will be killing ${playerSubject.guildMember.user.username}. Type \`cancel\` to cancel.`);
+                                        break;
+                                    }
+                                } else {
+                                    await message.channel.send("That person is not alive. Please choose someone else.");
                                 }
                             } else {
                                 await message.channel.send("Invalid player ID.");
@@ -315,6 +396,63 @@ export class Game {
                             }
                         }
                     break;
+                    default: 
+                        await message.channel.send("It is day; you cannot use your special ability yet.");
+                }
+            } else {
+                // to-do: things that aren't dm
+                if(message.channel == this.textChannels["the-central"] && message.content.startsWith("!")){
+                    var args = message.content.toLowerCase().split(" ");
+                    switch(this.gameState){
+                        case GameState.DAY_TRIAL_DECISION:
+                            switch(args[0]){
+                                case "!vote":
+                                    if(args.length == 2){
+                                        var voteChoice = parseInt(args[1]);
+                                        if(!isNaN(voteChoice)){
+                                            if(voteChoice < this.players.all.length && voteChoice >= 0){
+                                                var playerVoteChoice = this.players.all[voteChoice];
+                                                if(playerVoteChoice.isAlive){
+                                                    this.voting.votes.push({
+                                                        voter: player.guildMember,
+                                                        voted: playerVoteChoice
+                                                    });
+                                                    var individualVote = this.voting.individualVoted.find(voted => voted.voted == playerVoteChoice);
+                                                    if(individualVote != undefined){
+                                                        this.voting.individualVoted.find(voted => voted.voted == playerVoteChoice).votes++;
+                                                    } else {
+                                                        this.voting.individualVoted.push({
+                                                            voted: playerVoteChoice,
+                                                            votes: 1
+                                                        });
+                                                    }
+                                                    await message.channel.send(`Vote confirmed. ${playerVoteChoice.guildMember.user.username} now has ${this.voting.votes.filter(vote => vote.voted == playerVoteChoice).length} votes.`);
+                                                } else {
+                                                    await message.channel.send(message.author.username + ", that player is not alive. Please choose someone else to vote.");
+                                                }
+                                            } else {
+                                                await message.channel.send(message.author.username + ", that is not a valid player ID.");
+                                            }
+                                        } else {
+                                            await message.channel.send(message.author.username + ", that is not a valid player ID.");
+                                        }
+                                    } else {
+                                        await message.channel.send(message.author.username + ", you must vote in the format of `!vote <Player ID>`.");
+                                    }
+                                break;
+                                case "!cancel":
+                                    var playerVote = this.voting.votes.find(vote => vote.voter == player.guildMember);
+                                    if(playerVote != undefined){
+                                        this.voting.votes.splice(this.voting.votes.indexOf(playerVote), 1);
+                                        this.voting.individualVoted.find(vote => vote.voted == playerVoteChoice).votes--;
+                                        await message.channel.send(message.author.username + ", your vote has been canceled.");
+                                    } else {
+                                        await message.channel.send(message.author.username + ", you have not voted yet.");
+                                    }
+                                break;
+                            }
+                        break;
+                    }
                 }
             }
         }
