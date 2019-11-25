@@ -1,7 +1,7 @@
 // Refer to https://docs.google.com/document/d/1wyxnD5Khig2h3sQIXt755d7jGEreOYbWXhiSe4PBvhU/edit
 import { Game } from './game';
 import { Player } from './player';
-import { Message } from 'discord.js';
+import { Message, TextChannel } from 'discord.js';
 import { GameRole } from './enums';
 
 const Discord = require('discord.js')
@@ -38,6 +38,9 @@ client.on('message', (msg: Message) => {
         case "!startgame":
             if(msg.author.discriminator == "5612"){ // TO-DO: make a proper start game system
                 if(msg.guild.memberCount - 1 >= 6){ // Check if there are more than 6 players (bot is included in guild.memberCount)
+
+                    var lobbyChannel: TextChannel = <TextChannel> msg.guild.channels.find(channel => channel.name == "lobby");
+                    lobbyChannel.send("The game is starting! Please wait a couple seconds until the server is finished setting up...");
 
                     // Role Frequency Calculation
                     // TO-DO (low priority): change role frequency calculation? (maybe?)
@@ -98,6 +101,10 @@ client.on('message', (msg: Message) => {
                             member.removeRoles(member.roles);
                         }
                     });
+                break;
+                case "sendMsgTest":
+                    var channel : TextChannel = <TextChannel> msg.guild.channels.find(channel => channel.name == "bot-debug");
+                    channel.send("test");
                 break;
             }
             break;
