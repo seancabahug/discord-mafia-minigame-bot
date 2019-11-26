@@ -73,7 +73,7 @@ export class Game {
     initializeGame = async (bot: Client, players: Player[], server: Guild) => {
         // Reset channels
         this.serverGuild.channels.forEach(async (channel, key, map) => {
-            if(channel.name == "lobby" || channel.name == "bot-debug" || channel.name == "bot-roadmap" || channel.type == "category"){
+            if(channel.name == "lobby" || channel.name == "bot-debug" || channel.name == "bot-roadmap" || channel.type == "category" || channel.type == "voice"){
                 console.log(`not deleting ${channel.name}`);
             } else {
                 await channel.delete();

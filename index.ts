@@ -89,7 +89,7 @@ client.on('message', (msg: Message) => {
                         break;
                         case "deleteGameChannels":
                             msg.guild.channels.forEach((channel, key, map) => {
-                                if(channel.name == "lobby" || channel.name == "bot-debug" || channel.name == "bot-roadmap" || channel.type == "category"){
+                                if(channel.name == "lobby" || channel.name == "bot-debug" || channel.name == "bot-roadmap" || channel.type == "category" || channel.type == "voice"){
                                     console.log(`not deleting ${channel.name}`);
                                 } else {
                                     channel.delete();
