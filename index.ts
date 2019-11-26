@@ -115,7 +115,7 @@ client.on('message', (msg: Message) => {
                             player: msg.member,
                             ready: false
                         });
-                        msg.channel.send(`${msg.author.username}, you have been added to the queue. Type \`!ready\` to ready up, and type \`!startgame\` once everybody is ready!`);
+                        msg.channel.send(`${msg.author.username}, you have been added to the queue. Type \`!ready\` to ready up, and type \`!startgame\` once everybody is ready! If you would like the leave the queue, type \`!leave\``);
                         msg.member.setNickname(`✗ | ${msg.author.username}`);
                     } else {
                         msg.channel.send("You are already in the queue.");
@@ -135,6 +135,16 @@ client.on('message', (msg: Message) => {
                         }
                     } else {
                         msg.channel.send("You are not in the queue. Type `!join` to join!");
+                    }
+                break;
+                case "!leave":
+                    if(queue.find(player => player.player == msg.member) != undefined){
+                        var memberToSplice = queue.find(player => player.player == msg.member);
+                        queue.splice(queue.indexOf(memberToSplice));
+                        msg.channel.send(`${msg.author.username} has left the queue. Type \`!join\` if you would like to join!`);
+                        msg.member.setNickname("");
+                    } else {
+                        msg.channel.send("You are not in the queue.");
                     }
                 break;
                 default:
