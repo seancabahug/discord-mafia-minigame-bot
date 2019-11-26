@@ -292,6 +292,11 @@ export class Game {
                 }
             });
 
+            this.voting = {
+                votes: [],
+                individualVoted: []
+            };
+
             if(mostVotedVote.voted != null){
                 // Day trial statement!
                 this.gameState = GameState.DAY_TRIAL_STATEMENT;
@@ -366,7 +371,7 @@ export class Game {
                     this.isFinished = gameDone;
                 });
                 if(this.isFinished) break;
-                
+
                 await wait(2);
                 await this.textChannels["the-central"].send("The sun is setting; night will fall shortly.");
                 await wait(2);
@@ -374,6 +379,13 @@ export class Game {
                 await this.textChannels["the-central"].send("There is either a tie between multiple people, or no votes have been cast. The sun has set. Night will fall in 5 seconds.");
                 await wait(5);
             }
+            this.accuse = {
+                accused: null,
+                votes: {
+                    innocent: [],
+                    guilty: []
+                }
+            };
         }
         
     }
