@@ -33,9 +33,11 @@ export class Game {
             guilty: GuildMember[]
         }
     };
+    isFinished: boolean;
 
     constructor(bot: Client, players: Player[], server: Guild){
         // Initialize variables
+        this.isFinished = false;
         this.players = {
             all: players,
             detectives: players.filter(player => player.role == GameRole.DETECTIVE),
@@ -71,7 +73,7 @@ export class Game {
     initializeGame = async (bot: Client, players: Player[], server: Guild) => {
         // Reset channels
         this.serverGuild.channels.forEach(async (channel, key, map) => {
-            if(channel.name == "lobby" || channel.name == "bot-debug" || channel.name == "bot-roadmap"){
+            if(channel.name == "lobby" || channel.name == "bot-debug" || channel.name == "bot-roadmap" || channel.type == "category"){
                 console.log(`not deleting ${channel.name}`);
             } else {
                 await channel.delete();
@@ -243,9 +245,9 @@ export class Game {
 
             // check win
             await this.checkWin().then(gameDone => {
-               isGameDone = gameDone;
+               this.isFinished = gameDone;
             });
-            if(isGameDone) break;
+            if(this.isFinished) break;
 
             // Reset night actions
             this.nightActions = {
@@ -352,12 +354,19 @@ export class Game {
                 await this.textChannels["the-central"].send("The people have spoken!");
                 await wait(2);
                 if(this.accuse.votes.innocent.length < this.accuse.votes.guilty.length){
-                    await this.textChannels["the-central"].send(`${this.accuse.accused.guildMember.user.username}, you have been voted guilty. May you rest in peace.`);
+                    await this.textChannels["the-central"].send(`${this.accuse.accused.guildMember.user.username}, you have been voted guilty. May you rest in peace.\nHe was a ${GameRole[this.accuse.accused.role].toLowerCase}.`);
                     this.players.all[this.players.all.indexOf(this.accuse.accused)].isAlive = false;
-                    this.accuse.accused.guildMember.setRoles([]);
+                    await this.accuse.accused.guildMember.setRoles([]);
                 } else if (this.accuse.votes.innocent.length >= this.accuse.votes.guilty.length){
                     await this.textChannels["the-central"].send(`${this.accuse.accused.guildMember.user.username}, you have been declared innocent. You shall live another day.`);
                 }
+
+                // check win
+                await this.checkWin().then(gameDone => {
+                    this.isFinished = gameDone;
+                });
+                if(this.isFinished) break;
+                
                 await wait(2);
                 await this.textChannels["the-central"].send("The sun is setting; night will fall shortly.");
                 await wait(2);
