@@ -26,6 +26,13 @@ export class Game {
         votes: {voter: GuildMember, voted: Player}[],
         individualVoted: {voted: Player, votes: number}[]
     };
+    accuse: {
+        accused: Player,
+        votes: {
+            innocent: GuildMember[],
+            guilty: GuildMember[]
+        }
+    };
 
     constructor(bot: Client, players: Player[], server: Guild){
         // Initialize variables
@@ -48,6 +55,13 @@ export class Game {
         this.voting = {
             votes: [],
             individualVoted: []
+        };
+        this.accuse = {
+            accused: null,
+            votes: {
+                innocent: [],
+                guilty: []
+            }
         };
         this.day = 1;
 
@@ -161,13 +175,19 @@ export class Game {
             
             // Night time!
             this.gameState = GameState.NIGHT;
-            this.textChannels["the-central"].replacePermissionOverwrites({ // Remove message sending perms from #the-central
-                overwrites: [{
-                    id: this.aliveRole,
-                    deny: ["SEND_MESSAGES"]
-                }]
+            await this.textChannels["the-central"].replacePermissionOverwrites({ // Remove message sending perms from #the-central
+                overwrites: [
+                    {
+                        id: this.aliveRole,
+                        deny: ["SEND_MESSAGES"]
+                    },
+                    {
+                        id: this.serverGuild.id,
+                        deny: ['SEND_MESSAGES']
+                    }
+                ]
             });
-            this.textChannels["the-central"].send("Good night, everybody! The sun will rise in 20 seconds. If you have a special ability, please refer to DM.");
+            await this.textChannels["the-central"].send("Good night, everybody! The sun will rise in 20 seconds. If you have a special ability, please refer to DM.");
             this.players.all.forEach(async player => {
                 var examplePerson = this.players.all[Math.floor(Math.random() * this.players.all.length)];
                 switch(player.role){
@@ -234,7 +254,7 @@ export class Game {
                 heal: []
             };
 
-            await this.textChannels["the-central"].replacePermissionOverwrites({ // Remove message sending perms from #the-central
+            await this.textChannels["the-central"].replacePermissionOverwrites({ // Allow message sending perms from #the-central
                 overwrites: [{
                     id: this.aliveRole,
                     allow: ["SEND_MESSAGES"]
@@ -256,6 +276,7 @@ export class Game {
             await wait(5);
 
             this.textChannels["the-central"].send("Voting has ended!");
+            await wait(1);
 
             var mostVotedVote = {voted: null, votes: 0};
             this.voting.individualVoted.forEach(vote => {
@@ -272,8 +293,77 @@ export class Game {
             if(mostVotedVote.voted != null){
                 // Day trial statement!
                 this.gameState = GameState.DAY_TRIAL_STATEMENT;
+                
+                this.accuse.accused = mostVotedVote.voted;
+                
+                await this.textChannels["the-central"].replacePermissionOverwrites({
+                    overwrites: [
+                        {
+                            id: this.aliveRole,
+                            deny: ['SEND_MESSAGES']
+                        }, {
+                            id: this.accuse.accused.guildMember,
+                            allow: ['SEND_MESSAGES']
+                        }, {
+                            id: this.serverGuild.id,
+                            deny: ['SEND_MESSAGES']
+                        }
+                    ]
+                });
+
+                await this.textChannels["the-central"].send(`${this.accuse.accused.guildMember.user.username}, you are now on trial. You have 15 seconds to give a statement before the people will decide your fate.`);
+                await wait(10);
+                await this.textChannels["the-central"].send(`${this.accuse.accused.guildMember.user.username}, you have 5 seconds left.`);
+                await wait(5);
+
+                // Day vote
+                this.gameState = GameState.DAY_VOTE;
+                await this.textChannels["the-central"].replacePermissionOverwrites({
+                    overwrites: [
+                        {
+                            id: this.aliveRole,
+                            allow: ['SEND_MESSAGES']
+                        },
+                        {
+                            id: this.serverGuild.id,
+                            deny: ['SEND_MESSAGES']
+                        }
+                    ]
+                });
+                await this.textChannels["the-central"].send("You all have 30 seconds to discuss and vote. Type `!guilty` to vote guilty or `!innocent` to vote innocent.");
+                await wait(20);
+                await this.textChannels["the-central"].send("You all have 10 seconds to discuss and vote.");
+                await wait(5);
+                await this.textChannels["the-central"].send("You all have 5 seconds to discuss and vote.");
+                await wait(5);
+
+                await this.textChannels["the-central"].replacePermissionOverwrites({ // Remove message sending perms from #the-central
+                    overwrites: [
+                        {
+                            id: this.aliveRole,
+                            deny: ["SEND_MESSAGES"]
+                        },
+                        {
+                            id: this.serverGuild.id,
+                            deny: ['SEND_MESSAGES']
+                        }
+                    ]
+                });
+                await this.textChannels["the-central"].send("The people have spoken!");
+                await wait(2);
+                if(this.accuse.votes.innocent.length < this.accuse.votes.guilty.length){
+                    await this.textChannels["the-central"].send(`${this.accuse.accused.guildMember.user.username}, you have been voted guilty. May you rest in peace.`);
+                    this.players.all[this.players.all.indexOf(this.accuse.accused)].isAlive = false;
+                    this.accuse.accused.guildMember.setRoles([]);
+                } else if (this.accuse.votes.innocent.length >= this.accuse.votes.guilty.length){
+                    await this.textChannels["the-central"].send(`${this.accuse.accused.guildMember.user.username}, you have been declared innocent. You shall live another day.`);
+                }
+                await wait(2);
+                await this.textChannels["the-central"].send("The sun is setting; night will fall shortly.");
+                await wait(2);
             } else {
-                await this.textChannels["the-central"].send("There is either a tie between multiple people, or no votes have been cast. The sun has set.");
+                await this.textChannels["the-central"].send("There is either a tie between multiple people, or no votes have been cast. The sun has set. Night will fall in 5 seconds.");
+                await wait(5);
             }
         }
         
@@ -450,6 +540,41 @@ export class Game {
                                         await message.channel.send(message.author.username + ", you have not voted yet.");
                                     }
                                 break;
+                            }
+                        break;
+                        case GameState.DAY_VOTE:
+                            if(player != this.accuse.accused){
+                                switch(args[0]){
+                                    case "!innocent":
+                                        if(this.accuse.votes.innocent.find(accuser => accuser == player.guildMember) != undefined && this.accuse.votes.guilty.find(accuser => accuser == player.guildMember) != undefined){
+                                            this.accuse.votes.innocent.push(player.guildMember);
+                                            await message.channel.send(`**${message.author.username}** has voted **innocent**. Type \`!cancel\` to cancel your vote.`);
+                                        }
+                                    break;
+                                    case "!guilty":
+                                        if(this.accuse.votes.innocent.find(accuser => accuser == player.guildMember) != undefined && this.accuse.votes.guilty.find(accuser => accuser == player.guildMember) != undefined){
+                                            this.accuse.votes.guilty.push(player.guildMember);
+                                            await message.channel.send(`**${message.author.username}** has voted **guilty**. Type \`!cancel\` to cancel your vote.`);
+                                        }
+                                    break;
+                                    case "!cancel":
+                                        var innocentVote = this.accuse.votes.innocent.find(accuser => accuser == player.guildMember);
+                                        var guiltyVote = this.accuse.votes.guilty.find(accuser => accuser == player.guildMember);
+                                        if(innocentVote != undefined){
+                                            var vote = this.accuse.votes.innocent;
+                                            this.accuse.votes.innocent.splice(vote.indexOf(innocentVote));
+                                            await message.channel.send(`${message.author.username}, your vote has been cleared.`);
+                                        } else if(guiltyVote != undefined){
+                                            var vote = this.accuse.votes.guilty;
+                                            this.accuse.votes.guilty.splice(vote.indexOf(guiltyVote));   
+                                            await message.channel.send(`${message.author.username}, your vote has been cleared.`);
+                                        } else {
+                                            await message.channel.send(`${message.author.username}, you have not casted a vote yet.`);
+                                        }
+                                    break;
+                                }
+                            } else {
+                                await message.channel.send("You cannot vote if you are on trial.");
                             }
                         break;
                     }
