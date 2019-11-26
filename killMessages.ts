@@ -19,7 +19,9 @@ function generateMessage(player: Player, wasHealed: boolean){
             `**${playerUsername}** thought Sean needed to make better kill messages, and thus karma struck. They were a **${playerRole}**.`,
             `**${playerUsername}** died uwu!!!11 uwu owo uwu they were a **${playerRole}** uwuuu!`,
             `**${playerUsername}** was unable to handle the watermelon shoved into his dickhole. They were a **${playerRole}**.`,
-            `**${playerUsername}** was found dead with a pair of chopsticks in his eyes. They were a **${playerRole}**.`
+            `**${playerUsername}** was found dead with a pair of chopsticks in his eyes. They were a **${playerRole}**.`,
+            `**${playerUsername}** was taking a leisurely stroll during the night, but was then met with a flurry of "onyo". They were a **${playerRole}**.`,
+            `**${playerUsername}** was leisurely working, until a Karen was sent to speak to their manager. Corporate America has thus executed the **${playerRole}**.`
         ];
         return killMessages[Math.floor(Math.random() * killMessages.length)];
     } else {

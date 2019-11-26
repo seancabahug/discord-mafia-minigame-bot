@@ -21,6 +21,7 @@ function shuffle(a) {
 
 var game: Game | undefined = undefined;
 
+var currentlyInGame: GuildMember[] = [];
 var queue: {player: GuildMember, ready: boolean}[] = [];
 
 const minNumOfPlayers = 6;
@@ -37,11 +38,12 @@ client.on('message', (msg: Message) => {
     var args = msg.content.split(" ");
 
     if(msg.content.startsWith("!")){
-        if(game == undefined || game.isFinished){
+        if(game == undefined || game.isFinished || (currentlyInGame.find(member => member.user == msg.author) && !game.isFinished)){
             switch(args[0]) {
                 case "!startgame":
                     if(queue.length >= 6){ // Check if there are more than 6 players (bot is included in guild.memberCount)
                         if(queue.filter(player => player.ready == false).length == 0){
+                            currentlyInGame = [];
                             var lobbyChannel: TextChannel = <TextChannel> msg.guild.channels.find(channel => channel.name == "lobby");
                             lobbyChannel.send("The game is starting! Please wait a couple seconds until the server is finished setting up...");
 
@@ -68,13 +70,20 @@ client.on('message', (msg: Message) => {
                                 ));
                             }
 
-                            var debugString = "debug:\n";
+                            /*var debugString = "debug:\n";
                             for(let a = 0; a < playerArray.length; a++){
                                 debugString += `[${playerArray[a].guildMember.displayName}, role: ${playerArray[a].role.toString()}]\n`;
                             }
-                            msg.channel.send(debugString);
+                            msg.channel.send(debugString);*/
+
+                            playerArray = shuffle(playerArray);
 
                             game = new Game(client, playerArray, msg.guild);
+
+                            queue.forEach(element => {
+                                currentlyInGame.push(element.player);
+                            });
+                            queue = [];
                         } else {
                             msg.channel.send("All players in the queue must be ready to start a game! Type `!ready` if you haven't already!");
                         }
@@ -96,10 +105,11 @@ client.on('message', (msg: Message) => {
                                 }
                             });
                         break;
-                        case "resetRoles":
+                        case "resetMembers":
                             msg.guild.members.array().forEach(member => {
                                 if(member != msg.guild.me){
                                     member.removeRoles(member.roles);
+                                    member.setNickname("");
                                 }
                             });
                         break;
@@ -151,6 +161,14 @@ client.on('message', (msg: Message) => {
                     if(game != undefined) game.processMessage(msg);
             }
         } else {
+            msg.channel.send("You cannot use commands at this time.");
+        }
+    }
+
+    if(msg.channel == msg.author.dmChannel){
+        if(currentlyInGame.find(player => player.user == msg.author) != undefined && game != undefined && !game.isFinished ){
+            game.processMessage(msg);
+        } else if (game != undefined && !game.isFinished){
             msg.channel.send("There is a game in progress. You cannot use commands at this time.");
         }
     }
