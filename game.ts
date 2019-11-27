@@ -82,7 +82,7 @@ export class Game {
 
         // Grant roles / Set up channels
         for(let i = 0; i < players.length; i++){
-            await players[i].guildMember.addRole(this.aliveRole);
+            await players[i].guildMember.setRoles([this.aliveRole]);
             await players[i].guildMember.setNickname(`[${i}] ${players[i].guildMember.user.username}`.substring(0, 30));
         }
         
