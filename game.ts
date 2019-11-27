@@ -413,13 +413,13 @@ export class Game {
     checkWin = () => {
         return new Promise<boolean>(async resolve => {
             var innocentsWin: boolean = this.deadPlayers.filter(player => player.role == GameRole.MAFIA).length >= this.players.mafias.length;
-            var mafiaWins: boolean = this.deadPlayers.filter(player => player.role != GameRole.MAFIA).length >= this.players.all.filter(player => player.role != GameRole.MAFIA).length;
+            var mafiaWins: boolean = this.deadPlayers.filter(player => player.role != GameRole.MAFIA).length >= this.players.all.filter(player => player.role != GameRole.MAFIA).length || (this.players.all.length - this.deadPlayers.length == 2 && this.players.all.find(player => player.role == GameRole.MAFIA) != undefined);
             if(innocentsWin || mafiaWins){
                 resolve(true);
                 if(innocentsWin){
                     await this.textChannels["the-central"].send("All Mafia members are dead. **INNOCENTS WIN!**");
                 } else if (mafiaWins){
-                    await this.textChannels["the-central"].send("All innocents are dead. **MAFIA WINS!**");
+                    await this.textChannels["the-central"].send("All innocents are dead, or a stalemate has been made. **MAFIA WINS!**");
                 }
                 this.textChannels.forEach(channel => {
                     channel.replacePermissionOverwrites({

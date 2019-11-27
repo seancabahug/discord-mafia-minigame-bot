@@ -159,6 +159,11 @@ client.on('message', (msg: Message) => {
                         msg.channel.send("You are not in the queue.");
                     }
                 break;
+                case "!queue":
+                    var queueString = "People in the queue:\n";
+                    queue.forEach(player => queueString += `${player.player.user.username}\n`);
+                    msg.channel.send(queueString);
+                break;
                 default:
                     if(game != undefined) game.processMessage(msg);
             }
