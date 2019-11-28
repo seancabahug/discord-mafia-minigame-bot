@@ -229,7 +229,11 @@ export class Game {
 
             // Tell investigators the roles of the investigatee (is that the right word?)
             this.nightActions.investigate.forEach(async action => {
-                await action.detective.send(`Your investigation last night has confirmed that **${action.subject.guildMember.user.username}** is a **${GameRole[action.subject.role]}**. ᵖˡᵉᵃˢᵉ ᵈᵒⁿ'ᵗ ˢᵉⁿᵈ ˢᶜʳᵉᵉⁿˢʰᵒᵗˢ ᵗᵒ ᵒᵗʰᵉʳ ᵖᵉᵒᵖˡᵉ ᵇᵉᶜᵃᵘˢᵉ ᶦᵗ ᵐᵃᵏᵉˢ ᵗʰᵉ ᵍᵃᵐᵉ ˡᵉˢˢ ᶠᵘⁿ`);
+
+                var filteredMafia = this.players.all.filter(player => player.role != GameRole.MAFIA);
+                var innoRole = filteredMafia[Math.floor(Math.random() * filteredMafia.length)].role;
+                await action.detective.send(`Your investigation last night has concluded that **${action.subject.guildMember.user.username}** is EITHER a member of the Mafia or a **${(action.subject.role != GameRole.MAFIA) ? GameRole[action.subject.role] : GameRole[innoRole]}**. 
+                ᵖˡᵉᵃˢᵉ ᵈᵒⁿ'ᵗ ˢᵉⁿᵈ ˢᶜʳᵉᵉⁿˢʰᵒᵗˢ ᵗᵒ ᵒᵗʰᵉʳ ᵖᵉᵒᵖˡᵉ ᵇᵉᶜᵃᵘˢᵉ ᶦᵗ ᵐᵃᵏᵉˢ ᵗʰᵉ ᵍᵃᵐᵉ ˡᵉˢˢ ᶠᵘⁿ`);
             });
 
             await this.textChannels["the-central"].send(`Good morning everybody @here! It is day ${this.day}.`);
@@ -379,7 +383,7 @@ export class Game {
                 await this.textChannels["the-central"].send("The people have spoken!");
                 await wait(2);
                 if(this.accuse.votes.innocent.length < this.accuse.votes.guilty.length){
-                    await this.textChannels["the-central"].send(`${this.accuse.accused.guildMember.user.username}, you have been voted guilty. May you rest in peace.\nHe was a ${GameRole[this.accuse.accused.role].toLowerCase()}.`);
+                    await this.textChannels["the-central"].send(`${this.accuse.accused.guildMember.user.username}, you have been voted guilty. May you rest in peace.\nThey were **${GameRole[this.accuse.accused.role]}**.`);
                     this.players.all[this.players.all.indexOf(this.accuse.accused)].isAlive = false;
                     this.deadPlayers.push(this.accuse.accused);
                     await this.accuse.accused.guildMember.setRoles([]);
@@ -485,21 +489,25 @@ export class Game {
                                             await message.channel.send(`You will be healing ${playerSubject.guildMember.user.username}. Type \`cancel\` to cancel.`);
                                         break;
                                         case GameRole.MAFIA:
-                                            var killObj = this.nightActions.kill.find(action => action.killer.user == message.author);
-                                            if(killObj == undefined){
-                                                this.nightActions.kill.push({
-                                                    killer: player.guildMember,
-                                                    victim: playerSubject
-                                                });
+                                            if(playerSubject.role != GameRole.MAFIA){
+                                                var killObj = this.nightActions.kill.find(action => action.killer.user == message.author);
+                                                if(killObj == undefined){
+                                                    this.nightActions.kill.push({
+                                                        killer: player.guildMember,
+                                                        victim: playerSubject
+                                                    });
+                                                } else {
+                                                    this.nightActions.kill[this.nightActions.kill.indexOf(killObj)] = {
+                                                        killer: player.guildMember,
+                                                        victim: playerSubject
+                                                    };
+                                                }
+                                                await message.channel.send(`You will be killing ${playerSubject.guildMember.user.username}. Type \`cancel\` to cancel.`);
                                             } else {
-                                                this.nightActions.kill[this.nightActions.kill.indexOf(killObj)] = {
-                                                    killer: player.guildMember,
-                                                    victim: playerSubject
-                                                };
+                                                await message.channel.send("You cannot kill other members of the Mafia.");
                                             }
-                                            await message.channel.send(`You will be killing ${playerSubject.guildMember.user.username}. Type \`cancel\` to cancel.`);
                                         break;
-                                    }
+                                    } 
                                 } else {
                                     await message.channel.send("That person is not alive. Please choose someone else.");
                                 }
